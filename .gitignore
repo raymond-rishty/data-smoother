@@ -1,0 +1,8 @@
+
+/.gradle/
+/.idea/
+/build/
+/data-smoother.ipr
+/atlassian-ide-plugin.xml
+/data-smoother.iws
+/gradle/
