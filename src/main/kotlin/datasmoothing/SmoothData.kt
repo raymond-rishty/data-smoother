@@ -22,19 +22,13 @@ class SmoothData {
   fun readSheet(workbook: Workbook, sheetName: String) : Sheet = workbook.getSheet(sheetName)
 
   fun smooth(sheet: Sheet, bandwidth: Double = 0.15, robustnessIters: Int = 5, dataCellIndex: Int, valueCellIndex: Int, outputUnit: ChronoUnit, inputUnit: ChronoUnit) {
-    val map = getValues(sheet, dataCellIndex, valueCellIndex, inputUnit)
-
-    val xvalues = map.map { it.first }.toDoubleArray()
-    val loessInterpolator = LoessInterpolator(bandwidth, robustnessIters)
-    val smooth = loessInterpolator.smooth(xvalues, map.map { it.second }.toDoubleArray())
+    val (xvalues, smooth) = getSmoothValues(bandwidth, dataCellIndex, inputUnit, robustnessIters, sheet, valueCellIndex)
     val interpolate = SplineInterpolator().interpolate(xvalues, smooth)
 
-    val minutesInUnit = convert(inputUnit, outputUnit)
     var zip = xvalues.zip(smooth).toMap()
-    val map1 = xvalues
-      .min()!!
-      .toInt()
-      .rangeTo(xvalues.max()!!.toInt()).step(minutesInUnit).map {
+    val map1 = IntRange(xvalues.min()!!.toInt(), xvalues.max()!!.toInt())
+      .step(convert(inputUnit, outputUnit))
+      .map {
       startDate.plus(it.toLong(), inputUnit).to(
         if (zip.containsKey(it.toDouble())) {
           zip[it.toDouble()]
@@ -49,22 +43,31 @@ class SmoothData {
       .joinToString(separator = "\n"))
   }
 
+  private fun getSmoothValues(bandwidth: Double, dataCellIndex: Int, inputUnit: ChronoUnit, robustnessIters: Int, sheet: Sheet, valueCellIndex: Int): Pair<DoubleArray, DoubleArray> {
+    val map = getValues(sheet, dataCellIndex, valueCellIndex, inputUnit)
+
+    val xvalues = map.map { it.first }.toDoubleArray()
+    val loessInterpolator = LoessInterpolator(bandwidth, robustnessIters)
+    val smooth = loessInterpolator.smooth(xvalues, map.map { it.second }.toDoubleArray())
+    return Pair(xvalues, smooth)
+  }
+
   private fun convert(inputUnit: ChronoUnit, outputUnit: ChronoUnit) =
-    outputUnit.duration.toMinutes().toInt() / inputUnit.duration.toMinutes().toInt()
+    (outputUnit.duration.toMinutes().toLong() / inputUnit.duration.toMinutes().toLong()).toInt()
 
   private fun getValues(sheet: Sheet, dateCellIndex: Int, valueCellIndex: Int, inputUnit: ChronoUnit) : List<Pair<Double, Double>> {
     return sheet
       .map { getDate(it.getCell(dateCellIndex)).to(getAmount(it.getCell(valueCellIndex))) }
       .filter { it.first != null && it.second != null }
-      .map { toWeekNumber(it.first!!, inputUnit).to(it.second!!) }
+      .map { toUnitNumber(it.first!!, inputUnit).to(it.second!!) }
   }
 
-  private fun toWeekNumber(date: Date, inputUnit: ChronoUnit): Double = inputUnit
+  private fun toUnitNumber(date: Date, inputUnit: ChronoUnit): Double = inputUnit
     .between(startDate, date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime())
     .toDouble()
 
 
-  private fun getDate(cell: Cell?): Date? = if (cell?.cellType == Cell.CELL_TYPE_NUMERIC) {
+  private fun getDate(cell: Cell?): Date? = if (cell?.cellType == Cell.CELL_TYPE_NUMERIC || cell?.cellType == Cell.CELL_TYPE_FORMULA) {
     cell!!.dateCellValue
   } else {
     null
@@ -85,9 +88,18 @@ class SmoothData {
     = smooth(readSheet(readBook(filename), sheetName), bandwidth, robustnessIters, dataCellIndex, valueCellIndex, outputUnit, inputUnit)
 }
 
-fun main(args : Array<String>) {
+fun main(args: Array<String>) {
   val smoothData = SmoothData()
-  smoothData.smooth("""c:\Users\rrishty\Downloads\Attendance.xlsx""", "Sheet1", 0.15, 5, 0, 3, ChronoUnit.WEEKS, ChronoUnit.DAYS)
+  //smoothData.smooth("""c:\Users\rrishty\Downloads\Attendance.xlsx""", "Sheet1", 0.15, 5, 0, 3, ChronoUnit.WEEKS, ChronoUnit.DAYS)
   //smoothData.smooth("""c:\Users\rrishty\Downloads\Exton_DIAL_DIAL_integration_tests_BuildDurationNetTimeStatistics-7_26_16_9_42_AM.xlsx""", "Exton_DIAL_DIAL_integration_tes", 0.3, 8, 1, 3, ChronoUnit.DAYS, ChronoUnit.MINUTES)
-
+  //smoothData.smooth("""c:\Users\rrishty\Documents\realcleanpolitics-ge.xlsx""", "Sheet1", 0.15, 5, 9, 4, ChronoUnit.DAYS, ChronoUnit.HOURS);
+  //smoothData.smooth("""c:\Users\rrishty\Documents\realcleanpolitics-ge.xlsx""", "Sheet1", 0.15, 5, 9, 5, ChronoUnit.DAYS, ChronoUnit.HOURS);
+  smoothData.smooth(filename = """c:\Users\rrishty\Documents\communion.xlsx""",
+    sheetName = "Sheet1",
+    bandwidth = 0.05,
+    robustnessIters = 0,
+    dataCellIndex = 0,
+    valueCellIndex = 1,
+    outputUnit = ChronoUnit.MONTHS,
+    inputUnit = ChronoUnit.MONTHS)
 }
