@@ -1,2 +1,2 @@
 rootProject.name = 'data-smoother'
-
+rootProject.buildFileName = 'build.gradle.kts'
