@@ -15,6 +15,8 @@ buildscript {
 
   apply {
     plugin("kotlin")
+    plugin("idea")
+    plugin("java")
     plugin<ApplicationPlugin>()
   }
 
@@ -40,6 +42,9 @@ dependencies {
   compile("org.apache.poi:poi-ooxml:3.14")
   compile("org.apache.commons:commons-math3:3.6.1")
   compile("com.github.hotchemi:khronos:0.1.0")
+  compile("com.google.api-client:google-api-client:1.22.0")
+  compile("com.google.oauth-client:google-oauth-client-jetty:1.22.0")
+  compile("com.google.apis:google-api-services-sheets:v4-rev22-1.22.0")
   testCompile("junit:junit:4.11")
 }
 

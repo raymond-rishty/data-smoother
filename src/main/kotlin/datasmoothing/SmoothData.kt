@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.*
 
-class SmoothData {
+object SmoothData {
   val startDate: LocalDateTime = LocalDate.of(2006, Month.JANUARY, 1).atStartOfDay()
 
   fun readBook(s: String): Workbook = XSSFWorkbook(File(s))
@@ -25,14 +25,23 @@ class SmoothData {
 
   fun smooth(sheet: Sheet, bandwidth: Double = 0.15, robustnessIters: Int = 5, dataCellIndex: Int, valueCellIndex: Int, outputUnit: ChronoUnit, inputUnit: ChronoUnit, mapFunction: (inputUnit: ChronoUnit, interpolate: PolynomialSplineFunction, outputUnit: ChronoUnit, xvalues: DoubleArray, zip: Map<Double, Double>) -> List<Pair<LocalDateTime, Double?>> = {inputUnit, interpolate, outputUnit, xvalues, zip -> mapInterpolating(inputUnit, interpolate, outputUnit, xvalues, zip)}) {
     val (xvalues, smooth) = getSmoothValues(bandwidth, dataCellIndex, inputUnit, robustnessIters, sheet, valueCellIndex)
-    val interpolate = SplineInterpolator().interpolate(xvalues, smooth)
+    smooth(inputUnit, mapFunction, outputUnit, smooth, xvalues)
+  }
 
-    val zip = xvalues.zip(smooth).toMap()
-    val map = mapFunction(inputUnit, interpolate, outputUnit, xvalues, zip)
+  fun smooth(inputUnit: ChronoUnit, mapFunction: (ChronoUnit, PolynomialSplineFunction, ChronoUnit, DoubleArray, Map<Double, Double>) -> List<Pair<LocalDateTime, Double?>> = {inputUnit, interpolate, outputUnit, xvalues, zip -> mapInterpolating(inputUnit, interpolate, outputUnit, xvalues, zip)}, outputUnit: ChronoUnit, smooth: DoubleArray, xvalues: DoubleArray) {
+    val map = getOutputValues(inputUnit, mapFunction, outputUnit, smooth, xvalues)
 
     println(map
       .map { "${it.first.format(DateTimeFormatter.ofPattern("MM/dd/yyyy"))}\t ${it.second}" }
       .joinToString(separator = "\n"))
+  }
+
+  fun getOutputValues(inputUnit: ChronoUnit, mapFunction: (ChronoUnit, PolynomialSplineFunction, ChronoUnit, DoubleArray, Map<Double, Double>) -> List<Pair<LocalDateTime, Double?>> = {inputUnit, interpolate, outputUnit, xvalues, zip -> mapInterpolating(inputUnit, interpolate, outputUnit, xvalues, zip)}, outputUnit: ChronoUnit, smooth: DoubleArray, xvalues: DoubleArray): List<Pair<LocalDateTime, Double?>> {
+    val interpolate = SplineInterpolator().interpolate(xvalues, smooth)
+
+    val zip = xvalues.zip(smooth).toMap()
+    val map = mapFunction(inputUnit, interpolate, outputUnit, xvalues, zip)
+    return map
   }
 
   @Suppress("UNUSED_PARAMETER")
@@ -59,6 +68,10 @@ class SmoothData {
   private fun getSmoothValues(bandwidth: Double, dataCellIndex: Int, inputUnit: ChronoUnit, robustnessIters: Int, sheet: Sheet, valueCellIndex: Int): Pair<DoubleArray, DoubleArray> {
     val map = getValues(sheet, dataCellIndex, valueCellIndex, inputUnit)
 
+    return smoothValues(bandwidth, map, robustnessIters)
+  }
+
+  fun smoothValues(bandwidth: Double, map: List<Pair<Double, Double>>, robustnessIters: Int): Pair<DoubleArray, DoubleArray> {
     val xvalues = map.map { it.first }.toDoubleArray()
     val loessInterpolator = LoessInterpolator(bandwidth, robustnessIters)
     val smooth = loessInterpolator.smooth(xvalues, map.map { it.second }.toDoubleArray())
@@ -114,7 +127,7 @@ class SmoothData {
 }
 
 fun main(args: Array<String>) {
-  val smoothData = SmoothData()
+  val smoothData = SmoothData
   // offering
 /*  smoothData.smooth(
     filename = """c:\Users\rrishty\Downloads\Attendance (5).xlsx""",
